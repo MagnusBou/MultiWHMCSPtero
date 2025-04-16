@@ -49,7 +49,7 @@ function pterodactyl_GetHostname(array $params) {
 }
 
 pterodactyl_AddIdentifier($id){
-    $identifier = $params['username'];
+    $identifier = $params['serverusername'];
 
     return($identifier."_".$id);
 }
