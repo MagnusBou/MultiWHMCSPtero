@@ -51,7 +51,7 @@ function pterodactyl_GetHostname(array $params) {
 pterodactyl_AddIdentifier($id){
     $identifier = $params['serverusername'];
 
-    return($identifier."_".$id);
+    return($identifier.$id);
 }
 
 function pterodactyl_API(array $params, $endpoint, array $data = [], $method = "GET", $dontLog = false) {
@@ -418,11 +418,11 @@ function pterodactyl_CreateAccount(array $params) {
         // Check if IP & Port field have value. Prevents ":" being added if API error
         if (isset($_IP) && isset($_Port)) {
         try {
-			$query = Capsule::table('tblhosting')->where('id', pterodactyl_AddIdentifier($params['serviceid']))->where('userid', $params['userid'])->update(array('dedicatedip' => $_IP . ":" . $_Port));
+			$query = Capsule::table('tblhosting')->where('id', $params['serviceid'])->where('userid', $params['userid'])->update(array('dedicatedip' => $_IP . ":" . $_Port));
 		} catch (Exception $e) { return $e->getMessage() . "<br />" . $e->getTraceAsString(); }
     }
 
-        Capsule::table('tblhosting')->where('id', pterodactyl_AddIdentifier($params['serviceid']))->update([
+        Capsule::table('tblhosting')->where('id', $params['serviceid'])->update([
             'username' => '',
             'password' => '',
         ]);
@@ -446,7 +446,7 @@ function pterodactyl_GetServerID(array $params, $raw = false) {
     if(Capsule::schema()->hasTable('tbl_pterodactylproduct')) {
         $oldData = Capsule::table('tbl_pterodactylproduct')
             ->select('user_id', 'server_id')
-            ->where('service_id', '=', pterodactyl_AddIdentifier($params['serviceid']))
+            ->where('service_id', '=', $params['serviceid'])
             ->first();
 
         if(isset($oldData) && isset($oldData->server_id)) {
@@ -502,7 +502,7 @@ function pterodactyl_TerminateAccount(array $params) {
 
     // Remove the "Dedicated IP" Field on Termination
     try {
-        $query = Capsule::table('tblhosting')->where('id', pterodactyl_AddIdentifier($params['serviceid']))->where('userid', $params['userid'])->update(array('dedicatedip' => ""));
+        $query = Capsule::table('tblhosting')->where('id', $params['serviceid'])->where('userid', $params['userid'])->update(array('dedicatedip' => ""));
     } catch (Exception $e) { return $e->getMessage() . "<br />" . $e->getTraceAsString(); }
 
     return 'success';
@@ -530,7 +530,7 @@ function pterodactyl_ChangePassword(array $params) {
         if($updateResult['status_code'] !== 200) throw new Exception('Failed to change password, received error code: ' . $updateResult['status_code'] . '.');
 
         unset($params['password']);
-        Capsule::table('tblhosting')->where('id', pterodactyl_AddIdentifier($params['serviceid']))->update([
+        Capsule::table('tblhosting')->where('id', $params['serviceid'])->update([
             'username' => '',
             'password' => '',
         ]);
