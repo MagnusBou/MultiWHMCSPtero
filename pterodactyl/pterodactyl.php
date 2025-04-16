@@ -48,6 +48,12 @@ function pterodactyl_GetHostname(array $params) {
     return rtrim($hostname, '/');
 }
 
+pterodactyl_AddIdentifier($id){
+    $identifier = $params['username'];
+
+    return($identifier."_".$id);
+}
+
 function pterodactyl_API(array $params, $endpoint, array $data = [], $method = "GET", $dontLog = false) {
     $url = pterodactyl_GetHostname($params) . '/api/application/' . $endpoint;
 
@@ -305,7 +311,7 @@ function pterodactyl_CreateAccount(array $params) {
         $serverId = pterodactyl_GetServerID($params);
         if(isset($serverId)) throw new Exception('Failed to create server because it is already created.');
 
-        $userResult = pterodactyl_API($params, 'users/external/' . $params['clientsdetails']['id']);
+        $userResult = pterodactyl_API($params, 'users/external/' . pterodactyl_AddIdentifier($params['clientsdetails']['id']);
         if($userResult['status_code'] === 404) {
             $userResult = pterodactyl_API($params, 'users?filter[email]=' . urlencode($params['clientsdetails']['email']));
             if($userResult['meta']['pagination']['total'] === 0) {
@@ -314,7 +320,7 @@ function pterodactyl_CreateAccount(array $params) {
                     'email' => $params['clientsdetails']['email'],
                     'first_name' => $params['clientsdetails']['firstname'],
                     'last_name' => $params['clientsdetails']['lastname'],
-                    'external_id' => (string) $params['clientsdetails']['id'],
+                    'external_id' => (string) pterodactyl_AddIdentifier($params['clientsdetails']['id']),
                 ], 'POST');
             } else {
                 foreach($userResult['data'] as $key => $value) {
@@ -352,7 +358,7 @@ function pterodactyl_CreateAccount(array $params) {
             else $environment[$var] = $default;
         }
 
-        $name = pterodactyl_GetOption($params, 'server_name', pterodactyl_GenerateUsername() . '_' . $params['serviceid']);
+        $name = pterodactyl_GetOption($params, 'server_name', pterodactyl_GenerateUsername() . '_' . pterodactyl_AddIdentifier($params['serviceid']));
         $memory = pterodactyl_GetOption($params, 'memory');
         $swap = pterodactyl_GetOption($params, 'swap');
         $io = pterodactyl_GetOption($params, 'io');
@@ -395,7 +401,7 @@ function pterodactyl_CreateAccount(array $params) {
             ],
             'environment' => $environment,
             'start_on_completion' => true,
-            'external_id' => (string) $params['serviceid'],
+            'external_id' => (string) pterodactyl_AddIdentifier($params['serviceid']),
         ];
 
         $server = pterodactyl_API($params, 'servers?include=allocations', $serverData, 'POST');
@@ -412,11 +418,11 @@ function pterodactyl_CreateAccount(array $params) {
         // Check if IP & Port field have value. Prevents ":" being added if API error
         if (isset($_IP) && isset($_Port)) {
         try {
-			$query = Capsule::table('tblhosting')->where('id', $params['serviceid'])->where('userid', $params['userid'])->update(array('dedicatedip' => $_IP . ":" . $_Port));
+			$query = Capsule::table('tblhosting')->where('id', pterodactyl_AddIdentifier($params['serviceid']))->where('userid', $params['userid'])->update(array('dedicatedip' => $_IP . ":" . $_Port));
 		} catch (Exception $e) { return $e->getMessage() . "<br />" . $e->getTraceAsString(); }
     }
 
-        Capsule::table('tblhosting')->where('id', $params['serviceid'])->update([
+        Capsule::table('tblhosting')->where('id', pterodactyl_AddIdentifier($params['serviceid']))->update([
             'username' => '',
             'password' => '',
         ]);
@@ -429,7 +435,7 @@ function pterodactyl_CreateAccount(array $params) {
 
 // Function to allow backwards compatibility with death-droid's module
 function pterodactyl_GetServerID(array $params, $raw = false) {
-    $serverResult = pterodactyl_API($params, 'servers/external/' . $params['serviceid'], [], 'GET', true);
+    $serverResult = pterodactyl_API($params, 'servers/external/' . pterodactyl_AddIdentifier($params['serviceid']), [], 'GET', true);
     if($serverResult['status_code'] === 200) {
         if($raw) return $serverResult;
         else return $serverResult['attributes']['id'];
@@ -440,7 +446,7 @@ function pterodactyl_GetServerID(array $params, $raw = false) {
     if(Capsule::schema()->hasTable('tbl_pterodactylproduct')) {
         $oldData = Capsule::table('tbl_pterodactylproduct')
             ->select('user_id', 'server_id')
-            ->where('service_id', '=', $params['serviceid'])
+            ->where('service_id', '=', pterodactyl_AddIdentifier($params['serviceid']))
             ->first();
 
         if(isset($oldData) && isset($oldData->server_id)) {
@@ -496,7 +502,7 @@ function pterodactyl_TerminateAccount(array $params) {
 
     // Remove the "Dedicated IP" Field on Termination
     try {
-        $query = Capsule::table('tblhosting')->where('id', $params['serviceid'])->where('userid', $params['userid'])->update(array('dedicatedip' => ""));
+        $query = Capsule::table('tblhosting')->where('id', pterodactyl_AddIdentifier($params['serviceid']))->where('userid', $params['userid'])->update(array('dedicatedip' => ""));
     } catch (Exception $e) { return $e->getMessage() . "<br />" . $e->getTraceAsString(); }
 
     return 'success';
@@ -524,7 +530,7 @@ function pterodactyl_ChangePassword(array $params) {
         if($updateResult['status_code'] !== 200) throw new Exception('Failed to change password, received error code: ' . $updateResult['status_code'] . '.');
 
         unset($params['password']);
-        Capsule::table('tblhosting')->where('id', $params['serviceid'])->update([
+        Capsule::table('tblhosting')->where('id', pterodactyl_AddIdentifier($params['serviceid']))->update([
             'username' => '',
             'password' => '',
         ]);
@@ -614,8 +620,6 @@ function pterodactyl_LoginLink(array $params) {
 
         $hostname = pterodactyl_GetHostname($params);
         echo '<a style="padding-right:3px" href="'.$hostname.'/admin/servers/view/' . $serverId . '" target="_blank">[Go to Service]</a>';
-        echo '<p style="float:right; padding-right:1.3%">[<a href="https://github.com/pterodactyl/whmcs/issues" target="_blank">Report A Bug</a>]</p>';
-        # echo '<p style="float: right">[<a href="https://github.com/pterodactyl/whmcs/issues" target="_blank">Report A Bug</a>]</p>';
     } catch(Exception $err) {
         // Ignore
     }
