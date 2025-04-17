@@ -48,10 +48,10 @@ function pterodactyl_GetHostname(array $params) {
     return rtrim($hostname, '/');
 }
 
-function pterodactyl_AddIdentifier($id){
+function pterodactyl_AddIdentifier($id, $params){
     $identifier = $params['serverusername'];
 
-    return($identifier.$id);
+    return($identifier."-".$id);
 }
 
 function pterodactyl_API(array $params, $endpoint, array $data = [], $method = "GET", $dontLog = false) {
@@ -85,13 +85,12 @@ function pterodactyl_API(array $params, $endpoint, array $data = [], $method = "
     $responseData = json_decode($response, true);
     $responseData['status_code'] = curl_getinfo($curl, CURLINFO_HTTP_CODE);
     
-    if($responseData['status_code'] === 0 && !$dontLog) logModuleCall("Pterodactyl-WHMCS", "CURL ERROR", curl_error($curl), "");
+    if($responseData['status_code'] === 0) logModuleCall("Pterodactyl-WHMCS", "CURL ERROR", curl_error($curl), "");
 
     curl_close($curl);
 
-    if(!$dontLog) logModuleCall("Pterodactyl-WHMCS", $method . " - " . $url,
-        isset($data) ? json_encode($data) : "",
-        print_r($responseData, true));
+    logModuleCall("Pterodactyl-WHMCS", $method . " - " . $url,
+        isset($data) ? $data: "", $responseData);
 
     return $responseData;
 }
@@ -311,7 +310,7 @@ function pterodactyl_CreateAccount(array $params) {
         $serverId = pterodactyl_GetServerID($params);
         if(isset($serverId)) throw new Exception('Failed to create server because it is already created.');
 
-        $userResult = pterodactyl_API($params, 'users/external/' . pterodactyl_AddIdentifier($params['clientsdetails']['id']);
+        $userResult = pterodactyl_API($params, 'users/external/' . pterodactyl_AddIdentifier($params['clientsdetails']['id'], $params));
         if($userResult['status_code'] === 404) {
             $userResult = pterodactyl_API($params, 'users?filter[email]=' . urlencode($params['clientsdetails']['email']));
             if($userResult['meta']['pagination']['total'] === 0) {
@@ -320,7 +319,7 @@ function pterodactyl_CreateAccount(array $params) {
                     'email' => $params['clientsdetails']['email'],
                     'first_name' => $params['clientsdetails']['firstname'],
                     'last_name' => $params['clientsdetails']['lastname'],
-                    'external_id' => (string) pterodactyl_AddIdentifier($params['clientsdetails']['id']),
+                    'external_id' => (string) pterodactyl_AddIdentifier($params['clientsdetails']['id'], $params),
                 ], 'POST');
             } else {
                 foreach($userResult['data'] as $key => $value) {
@@ -358,7 +357,7 @@ function pterodactyl_CreateAccount(array $params) {
             else $environment[$var] = $default;
         }
 
-        $name = pterodactyl_GetOption($params, 'server_name', pterodactyl_GenerateUsername() . '_' . pterodactyl_AddIdentifier($params['serviceid']));
+        $name = pterodactyl_GetOption($params, 'server_name', pterodactyl_GenerateUsername() . '_' . pterodactyl_AddIdentifier($params['serviceid'], $params));
         $memory = pterodactyl_GetOption($params, 'memory');
         $swap = pterodactyl_GetOption($params, 'swap');
         $io = pterodactyl_GetOption($params, 'io');
@@ -401,7 +400,7 @@ function pterodactyl_CreateAccount(array $params) {
             ],
             'environment' => $environment,
             'start_on_completion' => true,
-            'external_id' => (string) pterodactyl_AddIdentifier($params['serviceid']),
+            'external_id' => (string) pterodactyl_AddIdentifier($params['serviceid'], $params),
         ];
 
         $server = pterodactyl_API($params, 'servers?include=allocations', $serverData, 'POST');
@@ -435,7 +434,7 @@ function pterodactyl_CreateAccount(array $params) {
 
 // Function to allow backwards compatibility with death-droid's module
 function pterodactyl_GetServerID(array $params, $raw = false) {
-    $serverResult = pterodactyl_API($params, 'servers/external/' . pterodactyl_AddIdentifier($params['serviceid']), [], 'GET', true);
+    $serverResult = pterodactyl_API($params, 'servers/external/' . pterodactyl_AddIdentifier($params['serviceid'], $params), [], 'GET', true);
     if($serverResult['status_code'] === 200) {
         if($raw) return $serverResult;
         else return $serverResult['attributes']['id'];
@@ -629,19 +628,19 @@ function pterodactyl_ClientArea(array $params) {
     if($params['moduletype'] !== 'pterodactyl') return;
 
     try {
+        $loginURL= "/modules/servers/pterodactyl/login.php";
+
         $hostname = pterodactyl_GetHostname($params);
         $serverData = pterodactyl_GetServerID($params, true);
-        if($serverData['status_code'] === 404 || !isset($serverData['attributes']['id'])) return [
-            'templatefile' => 'clientarea',
-            'vars' => [
-                'serviceurl' => $hostname,
-            ],
-        ];
+        if($serverData['status_code'] !== 404 && isset($serverData['attributes']['identifier'])){
+            $serverID = $serverData['attributes']['identifier'];
+            $loginURL .="?r=".urlencode("/server/" . $serverID);
+        } 
 
         return [
             'templatefile' => 'clientarea',
             'vars' => [
-                'serviceurl' => $hostname . '/server/' . $serverData['attributes']['identifier'],
+                'serviceurl' => $loginURL,
             ],
         ];
     } catch (Exception $err) {
